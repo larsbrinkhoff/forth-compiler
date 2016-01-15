@@ -34,10 +34,10 @@ variable #regs
 
 \ Primitives
 
-variable #prims
-: 0prims   0 #prims ! ;
+0 value #prims
+: +prim   1 #prims +! ;
 
-: t-compile,   , 1 #prims +! ;
+: t-compile,   , +prim ;
 : primitive:   create , , dup , 1+ ] !csp  does> t-compile, ;
 
 0
@@ -72,8 +72,8 @@ drop
 \ Compile definitions to intermediate code
 
 : inline   @+ 0 ?do @+ t-compile, loop drop ;
-: t:   create 0prims here 0 ,  does> inline ;
-: t;   #prims @ swap ! ;
+: t:   create here to #prims 0 ,  does> inline ;
+: t;   ;
 
 t: %rot   %>r %swap %r> %swap t;
 t: %-rot   %rot %rot t;
@@ -92,14 +92,24 @@ t: %add   %+ t;
 
 \ Process intermediate code and generate output code
 
-: reg ( -- u ) +reg ." MOVE r" dup . ." stack" cr ;
+variable load#
+: 0load   0 load# ! ;
+: +load   load# @  1 load# +! ;
+: -load   -1 load# +!  load# @ ;
+: .load   ." MOVE r" . ." stack[" +load (.) ." ]" cr ;
+
+: .store   ." MOVE stack[" -load (.) ." ] r" . cr ;
+: ?store   begin #s @ while s-pop .store repeat  ;
+
+: reg ( -- u ) +reg dup .load ;
 : regs   0 ?do reg s-push loop ;
 : #ds   cell+ @ ;
-: ?fetch   #ds #s @ - dup 0> if regs else drop then ;
+: ?load   #ds #s @ - dup 0> if regs else drop then ;
 : exe   3 cells + >r ;
-: prim   dup ?fetch exe ;
-: ?store   begin #s @ while ." MOVE stack r" s-pop . cr repeat ;
-: process ( xt -- ) 0stacks 0regs >body @+ 0 ?do @+ prim loop ?store ;
+: prim   dup ?load exe ;
+: ?add-sp   ?dup if ." ADD SP #" . cr then ;
+: return   load# @ #s @ -  ?store  ?add-sp  ." RETURN" cr ;
+: process ( xt -- ) 0stacks 0regs 0load >body @+ 0 ?do @+ prim loop drop return ;
 
 \ Tests
 
