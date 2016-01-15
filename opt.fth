@@ -2,6 +2,9 @@
 
 include lib/common.fth
 
+4 constant t-cell
+: t-cells   t-cell * ;
+
 \ Stack
 
 : items   cells ;
@@ -23,6 +26,9 @@ create return-stack  10 items allot
 : s-pop   0 s-pick s-drop ;
 : r-pop   0 r-pick r-drop ;
 
+: s-used? ( u -- f ) 0 #s @ 0 ?do over data-stack i item @ = or loop nip ;
+: r-used? ( u -- f ) 0 #s @ 0 ?do over return-stack i item @ = or loop nip ;
+
 : .ds   ." S: " #s @ 0 ?do data-stack i item @ . loop ;
 : .rs   ." R: " #r @ 0 ?do return-stack i item @ . loop ;
 
@@ -31,6 +37,8 @@ create return-stack  10 items allot
 variable #regs
 : 0regs   0 #regs ! ;
 : +reg ( -- u ) #regs @  1 #regs +! ;
+: used? ( u -- f ) dup s-used? swap r-used? or ;
+: ?+reg ( u1 -- u1|u2 ) dup used? if drop +reg then ;
 
 \ Primitives
 
@@ -52,6 +60,9 @@ variable #regs
 
    \ call, return, jump ;
    \ branch, 0branch ;
+
+   1 0 primitive: %@   ." LOAD r" s-pop dup ?+reg dup s-push . ." (r" (.) ." )" cr ;
+   2 0 primitive: %!   ." STORE r" s-pop s-pop . ." (r" (.) ." )" cr ;
 
    2 0 primitive: %+   ." ADD r" 1 s-pick . ." r" s-pop . cr ;
    2 0 primitive: %-   ." SUB r" 1 s-pick . ." r" s-pop . cr ;
@@ -88,26 +99,26 @@ t: %<>   %= %invert t;
 t: %>   %swap %< t;
 t: %u>   %swap %u< t;
 
-t: %add   %+ t;
+t: %tuck   %swap %over t;
+t: %+!   %tuck %@ %+ %swap %! t;
 
 \ Process intermediate code and generate output code
 
 variable load#
 : 0load   0 load# ! ;
 : +load   load# @  1 load# +! ;
-: -load   -1 load# +!  load# @ ;
-: .load   ." MOVE r" . ." stack[" +load (.) ." ]" cr ;
+: .load   ." LOAD r" . ." stack[" +load t-cells (.) ." ]" cr ;
 
-: .store   ." MOVE stack[" -load (.) ." ] r" . cr ;
-: ?store   begin #s @ while s-pop .store repeat  ;
+: .store   ." STORE r" . ." stack[" +load t-cells (.) ." ]" cr ;
+: ?store   0load begin #s @ while s-pop .store repeat  ;
 
 : reg ( -- u ) +reg dup .load ;
-: regs   0 ?do reg s-push loop ;
+: regs   ?dup if reg swap 1- recurse s-push then ;
 : #ds   cell+ @ ;
 : ?load   #ds #s @ - dup 0> if regs else drop then ;
 : exe   3 cells + >r ;
 : prim   dup ?load exe ;
-: ?add-sp   ?dup if ." ADD SP #" . cr then ;
+: ?add-sp   ?dup if ." ADD SP #" t-cells . cr then ;
 : return   load# @ #s @ -  ?store  ?add-sp  ." RETURN" cr ;
 : process ( xt -- ) 0stacks 0regs 0load >body @+ 0 ?do @+ prim loop drop return ;
 
@@ -119,5 +130,5 @@ cr .( Compile ROT: ) cr
 cr .( Compile -ROT: ) cr
 ' %-rot process
 
-cr .( Compile ADD ) cr
-' %add process
+cr .( Compile +! ) cr
+' %+! process
