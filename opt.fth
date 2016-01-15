@@ -83,24 +83,8 @@ drop
 \ Compile definitions to intermediate code
 
 : inline   @+ 0 ?do @+ t-compile, loop drop ;
-: t:   create here to #prims 0 ,  does> inline ;
+: t:   ." Compile: " source type cr  create here to #prims 0 ,  does> inline ;
 : t;   ;
-
-t: %rot   %>r %swap %r> %swap t;
-t: %-rot   %rot %rot t;
-t: %2dup   %over %over t;
-t: %nip   %swap %drop t;
-t: %2drop   %drop %drop t;
-
-t: %2>r   %r> %swap %rot %>r %>r %>r t;
-t: %2r>   %r> %r> %r> %rot %>r %swap t;
-
-t: %<>   %= %invert t;
-t: %>   %swap %< t;
-t: %u>   %swap %u< t;
-
-t: %tuck   %swap %over t;
-t: %+!   %tuck %@ %+ %swap %! t;
 
 \ Process intermediate code and generate output code
 
@@ -119,16 +103,26 @@ variable load#
 : exe   3 cells + >r ;
 : prim   dup ?load exe ;
 : ?add-sp   ?dup if ." ADD SP #" t-cells . cr then ;
-: return   load# @ #s @ -  ?store  ?add-sp  ." RETURN" cr ;
-: process ( xt -- ) 0stacks 0regs 0load >body @+ 0 ?do @+ prim loop drop return ;
+: return   load# @ #s @ - ?add-sp  ?store  ." RETURN" cr ;
+: generate ( xt -- ) 0stacks 0regs 0load  @+ 0 ?do @+ prim loop drop return ;
+
+: t;   latestxt >body generate ;
 
 \ Tests
 
-cr .( Compile ROT: ) cr
-' %rot process
+t: %rot   %>r %swap %r> %swap t;
+t: %-rot   %rot %rot t;
 
-cr .( Compile -ROT: ) cr
-' %-rot process
+t: %2dup   %over %over t;
+t: %nip   %swap %drop t;
+t: %2drop   %drop %drop t;
 
-cr .( Compile +! ) cr
-' %+! process
+\ t: %2>r   %r> %swap %rot %>r %>r %>r t;
+\ t: %2r>   %r> %r> %r> %rot %>r %swap t;
+
+\ t: %<>   %= %invert t;
+\ t: %>   %swap %< t;
+\ t: %u>   %swap %u< t;
+
+t: %tuck   %swap %over t;
+t: %+!   %tuck %@ %+ %swap %! t;
