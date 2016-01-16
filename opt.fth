@@ -40,6 +40,24 @@ variable #regs
 : used? ( u -- f ) dup s-used? swap r-used? or ;
 : ?+reg ( u1 -- u1|u2 ) dup used? if drop +reg then ;
 
+\ Faux assembler instructions.
+
+: ld,   ." LD r" . ." (r" (.) ." )" cr ;
+: st,   ." ST r" . ." (r" (.) ." )" cr ;
+: lds,  ." LD r" . (.) ." (SP)" cr ;
+: sts,  ." ST r" . (.) ." (SP)" cr ;
+: mov,  ." MOV r" . ." r" . cr ;
+: add,  ." ADD r" . ." r" . cr ;
+: add-sp, ." ADD SP #" . cr ;
+: sub,  ." SUB r" . ." r" . cr ;
+: neg,  ." NEG r" . cr ;
+: or,   ." OR r" . ." r" . cr ;
+: xor,  ." XOR r" . ." r" . cr ;
+: and,  ." AND r" . ." r" . cr ;
+: not,  ." NOT r" . cr ;
+: call, ." CALL ..." cr ;
+: ret,  ." RET" cr ;
+
 \ Primitives
 
 0 value #prims
@@ -61,16 +79,16 @@ variable #regs
    \ call, return, jump ;
    \ branch, 0branch ;
 
-   1 0 primitive: %@   ." LOAD r" s-pop dup ?+reg dup s-push . ." (r" (.) ." )" cr ;
-   2 0 primitive: %!   ." STORE r" s-pop s-pop . ." (r" (.) ." )" cr ;
+   1 0 primitive: %@   s-pop dup ?+reg dup s-push ld, ;
+   2 0 primitive: %!   s-pop s-pop st, ;
 
-   2 0 primitive: %+   ." ADD r" 1 s-pick . ." r" s-pop . cr ;
-   2 0 primitive: %-   ." SUB r" 1 s-pick . ." r" s-pop . cr ;
-   1 0 primitive: %negate   ." NEG r" 0 s-pick . cr ;
-   2 0 primitive: %or   ." OR r" 1 s-pick . ." r" s-pop . cr ;
-   2 0 primitive: %xor   ." XOR r" 1 s-pick . ." r" s-pop . cr ;
-   2 0 primitive: %and   ." AND r" 1 s-pick . ." r" s-pop . cr ;
-   1 0 primitive: %invert   ." NOT r" 0 s-pick . cr ;
+   2 0 primitive: %+   1 s-pick s-pop swap add, ;
+   2 0 primitive: %-   1 s-pick s-pop swap sub, ;
+   1 0 primitive: %negate   0 s-pick neg, ;
+   2 0 primitive: %or   1 s-pick s-pop swap or, ;
+   2 0 primitive: %xor   1 s-pick s-pop swap xor, ;
+   2 0 primitive: %and   1 s-pick s-pop swap and, ;
+   1 0 primitive: %invert   0 s-pick not, ;
 
    1 0 primitive: %0=   ;
    1 0 primitive: %0<   ;
@@ -91,10 +109,10 @@ drop
 variable load#
 : 0load   0 load# ! ;
 : +load   load# @  1 load# +! ;
-: .load   ." LOAD r" . ." stack[" +load t-cells (.) ." ]" cr ;
+: .load   +load t-cells swap lds, ;
 
-: .store   ." STORE r" . ." stack[" +load t-cells (.) ." ]" cr ;
-: ?store   0load begin #s @ while s-pop .store repeat  ;
+: .store   t-cells s-pop sts, ;
+: ?store   #s @ 0 ?do i .store loop ;
 
 : reg ( -- u ) +reg dup .load ;
 : regs   ?dup if reg swap 1- recurse s-push then ;
@@ -102,8 +120,8 @@ variable load#
 : ?load   #ds #s @ - dup 0> if regs else drop then ;
 : exe   3 cells + >r ;
 : prim   dup ?load exe ;
-: ?add-sp   ?dup if ." ADD SP #" t-cells . cr then ;
-: return   load# @ #s @ - ?add-sp  ?store  ." RETURN" cr ;
+: ?add-sp   ?dup if t-cells add-sp, then ;
+: return   load# @ #s @ - ?add-sp  ?store  ret, ;
 : generate ( xt -- ) 0stacks 0regs 0load  @+ 0 ?do @+ prim loop drop return ;
 
 : t;   latestxt >body generate ;
