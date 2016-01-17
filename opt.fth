@@ -7,16 +7,18 @@ include lib/common.fth
 
 \ Stack
 
-: items   cells ;
+10 constant #items
+
+: shift-stack ( a -- ) dup 1 cells + #items 1- cells cmove> ;
 
 variable #s
-create data-stack  10 items allot
+create data-stack  #items cells allot
 variable #r
-create return-stack  10 items allot
+create return-stack  #items cells allot
 
 : 0stacks   0 #s !  0 #r ! ;
 
-: item   items + ;
+: item   cells + ;
 : s-push ( x -- ) data-stack #s @ item !  1 #s +! ;
 : r-push ( x -- ) return-stack #r @ item !  1 #r +! ;
 : s-pick ( u -- x ) data-stack #s @ rot - 1- item @ ;
@@ -25,6 +27,7 @@ create return-stack  10 items allot
 : r-drop   -1 #r +! ;
 : s-pop   0 s-pick s-drop ;
 : r-pop   0 r-pick r-drop ;
+: s-bottom ( x -- ) data-stack shift-stack 1 #s +!  data-stack ! ;
 
 : s-used? ( u -- f ) 0 #s @ 0 ?do over data-stack i item @ = or loop nip ;
 : r-used? ( u -- f ) 0 #r @ 0 ?do over return-stack i item @ = or loop nip ;
@@ -123,7 +126,7 @@ variable load#
 : ?store   #s @ 0 ?do i .store loop ;
 
 : reg ( -- u ) +reg dup .load ;
-: regs   ?dup if reg swap 1- recurse s-push then ;
+: regs   0 ?do reg s-bottom loop ;
 : #ds   cell+ @ ;
 : ?load   #ds #s @ - dup 0> if regs else drop then ;
 : exe   3 cells + >r ;
