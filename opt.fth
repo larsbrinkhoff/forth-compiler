@@ -27,7 +27,7 @@ create return-stack  10 items allot
 : r-pop   0 r-pick r-drop ;
 
 : s-used? ( u -- f ) 0 #s @ 0 ?do over data-stack i item @ = or loop nip ;
-: r-used? ( u -- f ) 0 #s @ 0 ?do over return-stack i item @ = or loop nip ;
+: r-used? ( u -- f ) 0 #r @ 0 ?do over return-stack i item @ = or loop nip ;
 
 : .ds   ." S: " #s @ 0 ?do data-stack i item @ . loop ;
 : .rs   ." R: " #r @ 0 ?do return-stack i item @ . loop ;
@@ -66,6 +66,13 @@ variable #regs
 : t-compile,   , +prim ;
 : primitive:   create , , dup , 1+ ] !csp  does> t-compile, ;
 
+: src->src+dst   s-pop dup ?+reg dup s-push ;
+: ?2+reg ( u1 u2 -- u1 u2 | u2 u1 | u1|u2 u3 )
+   dup used? if swap
+      dup used? if +reg dup >r mov, r> then
+   then ;
+: src+src->src+dst   s-pop s-pop ?2+reg dup s-push ;
+
 0
    1 0 primitive: %dup   0 s-pick s-push ;
    1 0 primitive: %drop   s-drop ;
@@ -79,16 +86,16 @@ variable #regs
    \ call, return, jump ;
    \ branch, 0branch ;
 
-   1 0 primitive: %@   s-pop dup ?+reg dup s-push ld, ;
+   1 0 primitive: %@   src->src+dst ld, ;
    2 0 primitive: %!   s-pop s-pop st, ;
 
-   2 0 primitive: %+   1 s-pick s-pop swap add, ;
-   2 0 primitive: %-   1 s-pick s-pop swap sub, ;
-   1 0 primitive: %negate   0 s-pick neg, ;
-   2 0 primitive: %or   1 s-pick s-pop swap or, ;
-   2 0 primitive: %xor   1 s-pick s-pop swap xor, ;
-   2 0 primitive: %and   1 s-pick s-pop swap and, ;
-   1 0 primitive: %invert   0 s-pick not, ;
+   2 0 primitive: %+   src+src->src+dst add, ;
+   2 0 primitive: %-   src+src->src+dst sub, ;
+   1 0 primitive: %negate   src->src+dst neg, ;
+   2 0 primitive: %or   src+src->src+dst or, ;
+   2 0 primitive: %xor   src+src->src+dst xor, ;
+   2 0 primitive: %and   src+src->src+dst and, ;
+   1 0 primitive: %invert   src->src+dst not, ;
 
    1 0 primitive: %0=   ;
    1 0 primitive: %0<   ;
@@ -101,8 +108,9 @@ drop
 \ Compile definitions to intermediate code
 
 : inline   @+ 0 ?do @+ t-compile, loop drop ;
-: t:   ." Compile: " source type cr  create here to #prims 0 ,  does> inline ;
-: t;   ;
+: 0prims,   here to #prims 0 , ;
+: .source   ." Compile: " source type cr ;
+: t:   .source  create 0prims,  does> inline ;
 
 \ Process intermediate code and generate output code
 
@@ -122,7 +130,8 @@ variable load#
 : prim   dup ?load exe ;
 : ?add-sp   ?dup if t-cells add-sp, then ;
 : return   load# @ #s @ - ?add-sp  ?store  ret, ;
-: generate ( xt -- ) 0stacks 0regs 0load  @+ 0 ?do @+ prim loop drop return ;
+: 0compiler   0stacks 0regs 0load ;
+: generate ( a -- ) 0compiler  @+ 0 ?do @+ prim loop drop return ;
 
 : t;   latestxt >body generate ;
 
@@ -144,3 +153,8 @@ t: %2drop   %drop %drop t;
 
 t: %tuck   %swap %over t;
 t: %+!   %tuck %@ %+ %swap %! t;
+
+\ Test that dead registes are reused, and live registers are not clobbered.
+t: test1   %>r %dup %r> %+ t;
+t: test2   %dup %-rot %+ t;
+t: test3   %2dup %+ t;
