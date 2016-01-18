@@ -1,4 +1,4 @@
-\ Native code optimising compiler.
+\ Native code optimising compiler.  Copyright 2016 Lars Brinkhoff.
 
 require search.fth
 include lib/common.fth
@@ -93,8 +93,8 @@ variable #regs
    0 1 primitive: r>   r-pop s-push ;
    0 1 primitive: r@   0 r-pick s-push ;
 
-   \ call, return, jump ;
-   \ branch, 0branch ;
+   \ call, return, jump
+   \ branch, 0branch
 
    1 0 primitive: @   src->src+dst ld, ;
    2 0 primitive: !   s-pop s-pop st, ;
@@ -170,3 +170,6 @@ t: +!   tuck @ + swap ! ;
 t: test1   >r dup r> + ;
 t: test2   dup -rot + ;
 t: test3   2dup + ;
+
+\ In the future, it would be nice if this were compiled to "-".
+\ t: test4   negate + ;
