@@ -35,14 +35,6 @@ create return-stack  #items cells allot
 : .ds   ." S: " #s @ 0 ?do data-stack i item @ . loop ;
 : .rs   ." R: " #r @ 0 ?do return-stack i item @ . loop ;
 
-\ Registers
-
-variable #regs
-: 0regs   0 #regs ! ;
-: +reg ( -- u ) #regs @  1 #regs +! ;
-: used? ( u -- f ) dup s-used? swap r-used? or ;
-: ?+reg ( u1 -- u1|u2 ) dup used? if drop +reg then ;
-
 \ Faux assembler instructions.
 
 : ld,   ." LD r" . ." (r" (.) ." )" cr ;
@@ -61,20 +53,30 @@ variable #regs
 : call, ." CALL ..." cr ;
 : ret,  ." RET" cr ;
 
+\ Registers
+
+variable #regs
+: 0regs   0 #regs ! ;
+: +reg ( -- u ) #regs @  1 #regs +! ;
+: used? ( u -- f ) dup s-used? swap r-used? or ;
+: ?+reg ( u1 -- u1|u2 ) dup used? if drop +reg then ;
+: ?2+reg ( u1 u2 -- u1 u2 | u2 u1 | u1|u2 u3 )
+   dup used? if swap
+      dup used? if +reg dup >r mov, r> then
+   then ;
+
 \ Primitives
 
 0 value #prims
 : +prim   1 #prims +! ;
 
+: ?move   2dup <> if 2dup mov, then nip ;
+: src->dst   s-pop dup ?+reg dup s-push ?move ;
+: src->src+dst   s-pop dup ?+reg dup s-push ;
+: src+src->src+dst   s-pop s-pop ?2+reg dup s-push ;
+
 : t-compile,   , +prim ;
 : primitive:   create , , dup , 1+ ] !csp  does> t-compile, ;
-
-: src->src+dst   s-pop dup ?+reg dup s-push ;
-: ?2+reg ( u1 u2 -- u1 u2 | u2 u1 | u1|u2 u3 )
-   dup used? if swap
-      dup used? if +reg dup >r mov, r> then
-   then ;
-: src+src->src+dst   s-pop s-pop ?2+reg dup s-push ;
 
 0
    1 0 primitive: %dup   0 s-pick s-push ;
@@ -94,11 +96,11 @@ variable #regs
 
    2 0 primitive: %+   src+src->src+dst add, ;
    2 0 primitive: %-   src+src->src+dst sub, ;
-   1 0 primitive: %negate   src->src+dst neg, ;
+   1 0 primitive: %negate   src->dst neg, ;
    2 0 primitive: %or   src+src->src+dst or, ;
    2 0 primitive: %xor   src+src->src+dst xor, ;
    2 0 primitive: %and   src+src->src+dst and, ;
-   1 0 primitive: %invert   src->src+dst not, ;
+   1 0 primitive: %invert   src->dst not, ;
 
    1 0 primitive: %0=   ;
    1 0 primitive: %0<   ;
