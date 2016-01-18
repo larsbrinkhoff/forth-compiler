@@ -103,11 +103,9 @@ also t-words definitions previous
    1 0 0 primitive: dup   0 s-pick s-push ;
    1 0 0 primitive: drop   s-drop ;
    2 0 0 primitive: swap   s-pop s-pop swap s-push s-push ;
-   2 0 0 primitive: over   1 s-pick s-push ;
 
    1 0 0 primitive: >r   s-pop r-push ;
    0 1 0 primitive: r>   r-pop s-push ;
-   0 1 0 primitive: r@   0 r-pick s-push ;
 
    \ call, return, jump
    \ branch, 0branch
@@ -174,6 +172,7 @@ only forth definitions
 t: rot   >r swap r> swap ;
 t: -rot   rot rot ;
 
+t: over   >r dup r> swap ;
 t: 2dup   over over ;
 t: nip   swap drop ;
 t: 2drop   drop drop ;
