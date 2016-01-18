@@ -1,9 +1,14 @@
 \ Native code optimising compiler.
 
+require search.fth
 include lib/common.fth
 
 4 constant t-cell
 : t-cells   t-cell * ;
+
+vocabulary t-words
+: target   only t-words definitions ;
+: host   only forth definitions ;
 
 \ Stack
 
@@ -78,44 +83,44 @@ variable #regs
 : t-compile,   , +prim ;
 : primitive:   create , , dup , 1+ ] !csp  does> t-compile, ;
 
-0
-   1 0 primitive: %dup   0 s-pick s-push ;
-   1 0 primitive: %drop   s-drop ;
-   2 0 primitive: %swap   s-pop s-pop swap s-push s-push ;
-   2 0 primitive: %over   1 s-pick s-push ;
+0 also t-words definitions previous
+   1 0 primitive: dup   0 s-pick s-push ;
+   1 0 primitive: drop   s-drop ;
+   2 0 primitive: swap   s-pop s-pop swap s-push s-push ;
+   2 0 primitive: over   1 s-pick s-push ;
 
-   1 0 primitive: %>r   s-pop r-push ;
-   0 1 primitive: %r>   r-pop s-push ;
-   0 1 primitive: %r@   0 r-pick s-push ;
+   1 0 primitive: >r   s-pop r-push ;
+   0 1 primitive: r>   r-pop s-push ;
+   0 1 primitive: r@   0 r-pick s-push ;
 
    \ call, return, jump ;
    \ branch, 0branch ;
 
-   1 0 primitive: %@   src->src+dst ld, ;
-   2 0 primitive: %!   s-pop s-pop st, ;
+   1 0 primitive: @   src->src+dst ld, ;
+   2 0 primitive: !   s-pop s-pop st, ;
 
-   2 0 primitive: %+   src+src->src+dst add, ;
-   2 0 primitive: %-   src+src->src+dst sub, ;
-   1 0 primitive: %negate   src->dst neg, ;
-   2 0 primitive: %or   src+src->src+dst or, ;
-   2 0 primitive: %xor   src+src->src+dst xor, ;
-   2 0 primitive: %and   src+src->src+dst and, ;
-   1 0 primitive: %invert   src->dst not, ;
+   2 0 primitive: +   src+src->src+dst add, ;
+   2 0 primitive: -   src+src->src+dst sub, ;
+   1 0 primitive: negate   src->dst neg, ;
+   2 0 primitive: or   src+src->src+dst or, ;
+   2 0 primitive: xor   src+src->src+dst xor, ;
+   2 0 primitive: and   src+src->src+dst and, ;
+   1 0 primitive: invert   src->dst not, ;
 
-   1 0 primitive: %0=   ;
-   1 0 primitive: %0<   ;
+   1 0 primitive: 0=   ;
+   1 0 primitive: 0<   ;
 
-   2 0 primitive: %=   s-drop ;
-   2 0 primitive: %<   s-drop ;
-   2 0 primitive: %u<   s-drop ;
-drop
+   2 0 primitive: =   s-drop ;
+   2 0 primitive: <   s-drop ;
+   2 0 primitive: u<   s-drop ;
+drop only forth definitions
 
 \ Compile definitions to intermediate code
 
 : inline   @+ 0 ?do @+ t-compile, loop drop ;
 : 0prims,   here to #prims 0 , ;
 : .source   ." Compile: " source type cr ;
-: t:   .source  create 0prims,  does> inline ;
+: t:   .source target create 0prims,  does> inline ;
 
 \ Process intermediate code and generate output code
 
@@ -138,28 +143,30 @@ variable load#
 : 0compiler   0stacks 0regs 0load ;
 : generate ( a -- ) 0compiler  @+ 0 ?do @+ prim loop drop return ;
 
-: t;   latestxt >body generate ;
+also t-words definitions
+: ;   latestxt >body generate host ;
+only forth definitions
 
 \ Tests
 
-t: %rot   %>r %swap %r> %swap t;
-t: %-rot   %rot %rot t;
+t: rot   >r swap r> swap ;
+t: -rot   rot rot ;
 
-t: %2dup   %over %over t;
-t: %nip   %swap %drop t;
-t: %2drop   %drop %drop t;
+t: 2dup   over over ;
+t: nip   swap drop ;
+t: 2drop   drop drop ;
 
-\ t: %2>r   %r> %swap %rot %>r %>r %>r t;
-\ t: %2r>   %r> %r> %r> %rot %>r %swap t;
+\ t: 2>r   r> swap rot >r >r >r ;
+\ t: 2r>   r> r> r> rot >r swap ;
 
-\ t: %<>   %= %invert t;
-\ t: %>   %swap %< t;
-\ t: %u>   %swap %u< t;
+\ t: <>   = invert ;
+\ t: >   swap < ;
+\ t: u>   swap u< ;
 
-t: %tuck   %swap %over t;
-t: %+!   %tuck %@ %+ %swap %! t;
+t: tuck   swap over ;
+t: +!   tuck @ + swap ! ;
 
 \ Test that dead registes are reused, and live registers are not clobbered.
-t: test1   %>r %dup %r> %+ t;
-t: test2   %dup %-rot %+ t;
-t: test3   %2dup %+ t;
+t: test1   >r dup r> + ;
+t: test2   dup -rot + ;
+t: test3   2dup + ;
