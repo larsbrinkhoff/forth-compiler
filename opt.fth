@@ -5,7 +5,9 @@ include lib/common.fth
 
 \ Configuration
 
-4 constant t-cell
+4 constant t-cell  \ Target cell size.
+1 constant #tos    \ Number of TOS registers across calls.
+
 : t-cells   t-cell * ;
 
 \ Target vocabulary
@@ -21,7 +23,7 @@ hex 80000000 constant const# decimal
 : >const   const# or ;
 : >num   const# invert and ;
 
-\ Stack
+\ Stack model
 
 10 constant #items
 
@@ -80,6 +82,8 @@ variable #regs
 : used? ( u -- f ) dup s-used? swap r-used? or ;
 : ?+reg ( u1 -- u1|u2 ) dup used? if drop +reg then ;
 : ?2+reg ( u1 u2 -- u1 u2 | u2 u1 | u1|u2 u3 )
+   \ Reuse unused registers u1 or u2 for output,
+   \ or allocate a new register u3.
    dup used? if swap
       dup used? if +reg dup >r mov, r> then
    then ;
@@ -87,7 +91,7 @@ variable #regs
 \ Initial state at entry point.
 
 : ret-push   3735928559 >const r-push ;
-: enter   ret-push ( tos ) ;
+: enter   ret-push  #tos 0 ?do +reg s-bottom loop ;
 
 \ Primitives
 
@@ -103,12 +107,18 @@ variable #regs
 : #rs   cell+ @ ;
 : #ds   2 cells + @ ;
 : exe   3 cells + >r ;
-: fold   dup >r #ds 0 ?do s-pop >num loop r> 'fold execute >const s-push ;
+
+: operands   dup >r #ds 0 ?do s-pop >num loop r> ;
+: fold   operands 'fold execute >const s-push ;
 
 : t-compile,   , +prim ;
 : primitive:   create , , , ] !csp  does> t-compile, ;
 
 also t-words definitions previous
+   \ Define primitives: ( u1 u2 xt )
+   \ u1 is the number of data stack inputs.
+   \ u2 is the number of return stack inputs.
+   \ xt is the constant folding function, or 0 if no folding is to be done.
    1 0 0 primitive: dup   0 s-pick s-push ;
    1 0 0 primitive: drop   s-drop ;
    2 0 0 primitive: swap   s-pop s-pop swap s-push s-push ;
@@ -166,8 +176,9 @@ variable load#
 : 0load   0 load# ! ;
 : +load   load# @  1 load# +! ;
 : .load   +load t-cells swap lds, ;
+: tos>   #tos 0 ?do #s @ if s-pop else +load t-cells 0 lds, 0 then loop ;
 
-: >tos   dup 0 <> if 0 mov, else drop then ;
+: >tos   #tos 0 ?do dup 0 <> if 0 mov, else drop then loop ;
 : .store   t-cells s-pop sts, ;
 : ?store   #s @ 0 ?do i .store loop ;
 
@@ -175,10 +186,10 @@ variable load#
 : regs   0 ?do reg s-bottom loop ;
 : ?load   #ds #s @ - dup 0> if regs else drop then ;
 : prim   dup ?load ?fold ;
-: ?add-sp   ?dup if t-cells add-sp, then ;
-: return   load# @ #s @ - ?add-sp  ?store  ret, ;
+: ?add-sp   load# @ #s @ - ?dup if t-cells add-sp, then ;
+: return   tos> ?add-sp ?store >tos ret, ;
 : 0compiler   0stacks 0regs 0load  enter ;
-: generate ( a -- ) 0compiler  @+ 0 ?do @+ prim loop drop return ;
+: generate ( a -- ) 0compiler  @+ 0 ?do @+ prim loop drop  return ;
 
 also t-words definitions
 : ;   latestxt >body generate host ;
