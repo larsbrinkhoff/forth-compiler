@@ -3,8 +3,12 @@
 require search.fth
 include lib/common.fth
 
+\ Configuration
+
 4 constant t-cell
 : t-cells   t-cell * ;
+
+\ Target vocabulary
 
 vocabulary t-words
 : target   only t-words definitions ;
@@ -80,6 +84,11 @@ variable #regs
       dup used? if +reg dup >r mov, r> then
    then ;
 
+\ Initial state at entry point.
+
+: ret-push   3735928559 >const r-push ;
+: enter   ret-push ( tos ) ;
+
 \ Primitives
 
 0 value #prims
@@ -107,8 +116,10 @@ also t-words definitions previous
    1 0 0 primitive: >r   s-pop r-push ;
    0 1 0 primitive: r>   r-pop s-push ;
 
-   \ call, return, jump
-   \ branch, 0branch
+   0 0 0 primitive: call   ret-push ;
+   0 1 0 primitive: exit   r-drop ;
+
+   \ jump, branch, 0branch
 
    1 0 0 primitive: @   src->src+dst ld, ;
    2 0 0 primitive: !   s-pop s-pop st, ;
@@ -133,12 +144,17 @@ also t-words definitions previous
    0 0 0 primitive: 3   3 >const s-push ;
 only forth definitions
 
+also t-words
+: call   call ;
+: ret   exit ;
+previous
+
 \ Compile definitions to intermediate code
 
 : inline   @+ 0 ?do @+ t-compile, loop drop ;
 : 0prims,   here to #prims 0 , ;
 : .source   ." Compile: " source type cr ;
-: t:   .source target create 0prims,  does> inline ;
+: t:   .source target create 0prims,  does> call inline ret ;
 
 \ Process intermediate code and generate output code
 
@@ -151,6 +167,7 @@ variable load#
 : +load   load# @  1 load# +! ;
 : .load   +load t-cells swap lds, ;
 
+: >tos   dup 0 <> if 0 mov, else drop then ;
 : .store   t-cells s-pop sts, ;
 : ?store   #s @ 0 ?do i .store loop ;
 
@@ -160,7 +177,7 @@ variable load#
 : prim   dup ?load ?fold ;
 : ?add-sp   ?dup if t-cells add-sp, then ;
 : return   load# @ #s @ - ?add-sp  ?store  ret, ;
-: 0compiler   0stacks 0regs 0load ;
+: 0compiler   0stacks 0regs 0load  enter ;
 : generate ( a -- ) 0compiler  @+ 0 ?do @+ prim loop drop return ;
 
 also t-words definitions
